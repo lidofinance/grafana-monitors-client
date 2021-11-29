@@ -47,6 +47,4 @@ func TestPanels(t *testing.T) {
 			t.Fatalf("image is empty: %s", err)
 		}
 	}
-
-	t.Fatalf("%+v", panels)
 }
