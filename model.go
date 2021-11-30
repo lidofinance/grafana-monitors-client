@@ -56,3 +56,9 @@ type expr struct {
 	Query        string
 	LegendFormat string
 }
+
+type ImageAttributes struct {
+	Width    int
+	Height   int
+	Timezone string
+}

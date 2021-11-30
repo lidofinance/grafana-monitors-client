@@ -8,11 +8,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const (
-	dashbordPath    = "/api/dashboards/uid/"
+	dashboardPath   = "/api/dashboards/uid/"
 	alertsPath      = "/api/alerts"
 	datasourcesPath = "/api/datasources/proxy/1/api/v1/query_range"
 )
@@ -21,7 +22,7 @@ const (
 	authHeader = "Authorization"
 
 	// in our case it doesn't matter, but required
-	defautlStepQueryParam = 10
+	defaultStepQueryParam = 10
 	multipleLegendFormat  = "{{label}}"
 )
 
@@ -32,6 +33,10 @@ type client struct {
 }
 
 func newClient(url string, token string, timeout time.Duration) *client {
+	if strings.Index(url, httpPrefix) != 0 {
+		url = httpPrefix + url
+	}
+
 	return &client{
 		client: http.Client{Timeout: timeout},
 		url:    url,
@@ -45,23 +50,23 @@ func (c *client) getDashboard(ctx context.Context, dashboardUID string) (dashboa
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("%s%s%s", c.url, dashbordPath, dashboardUID),
+		fmt.Sprintf("%s%s%s", c.url, dashboardPath, dashboardUID),
 		nil)
 	if err != nil {
-		return dashboardData{}, err
+		return dashboardData{}, fmt.Errorf("failed to create NewRequestWithContext: %w", err)
 	}
 
 	req.Header.Add(authHeader, c.token)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return dashboardData{}, err
+		return dashboardData{}, fmt.Errorf("failed to do request: %w", err)
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return dashboardData{}, errors.New("failed: status code is not 200")
+		return dashboardData{}, fmt.Errorf("failed: status code is %d", resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -85,7 +90,7 @@ func (c *client) alertStates(ctx context.Context, dashboardID int) (map[int]Aler
 		fmt.Sprintf("%s%s", c.url, alertsPath),
 		nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create NewRequestWithContext: %w", err)
 	}
 
 	req.URL.Query().Add("dashboardId", strconv.FormatInt(int64(dashboardID), 10))
@@ -93,13 +98,13 @@ func (c *client) alertStates(ctx context.Context, dashboardID int) (map[int]Aler
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to do request: %w", err)
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("failed: status code is not 200")
+		return nil, fmt.Errorf("failed: status code is %d", resp.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -115,7 +120,7 @@ func (c *client) alertStates(ctx context.Context, dashboardID int) (map[int]Aler
 }
 
 func (c *client) currentValues(ctx context.Context, queries []expr) ([]CurrentValue, error) {
-	var result []CurrentValue
+	result := make([]CurrentValue, 0, len(queries))
 
 	for _, query := range queries {
 		currentLabelValues, err := c.datasource(ctx, query.Query)
@@ -147,7 +152,7 @@ func (c *client) datasource(ctx context.Context, query string) ([]LabelValue, er
 		fmt.Sprintf("%s%s", c.url, datasourcesPath),
 		nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create NewRequestWithContext: %w", err)
 	}
 
 	now := time.Now().Unix()
@@ -157,7 +162,7 @@ func (c *client) datasource(ctx context.Context, query string) ([]LabelValue, er
 	q.Add("query", query)
 	q.Add("start", strconv.FormatInt(now, 10))
 	q.Add("end", strconv.FormatInt(now, 10))
-	q.Add("step", strconv.FormatInt(defautlStepQueryParam, 10))
+	q.Add("step", strconv.FormatInt(defaultStepQueryParam, 10))
 
 	req.URL.RawQuery = q.Encode()
 
@@ -165,7 +170,7 @@ func (c *client) datasource(ctx context.Context, query string) ([]LabelValue, er
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to do request: %w", err)
 	}
 
 	defer resp.Body.Close()

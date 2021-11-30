@@ -17,7 +17,11 @@ const (
 )
 
 func TestPanels(t *testing.T) {
-	inst := NewGrafana(addr, token, timeout)
+	inst := NewGrafana(addr, token, timeout, ImageAttributes{
+		Height:   500,
+		Width:    1000,
+		Timezone: "Europe/Moscow",
+	})
 
 	panels, err := inst.Panels(context.Background(), dashboardUID)
 	if err != nil {

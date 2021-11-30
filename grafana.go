@@ -3,12 +3,11 @@ package grafana
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 )
 
 const (
-	imageURLFormat = "%s/render/d-solo/%s/lido-monitors?from=%d&to=%d&panelId=%d&width=1000&height=500&tz=Europe/Moscow"
+	imageURLFormat = "%s/render/d-solo/%s/lido-monitors?from=%d&to=%d&panelId=%d&width=%d&height=%d&tz=%s"
 
 	httpPrefix = "http://"
 )
@@ -19,17 +18,13 @@ type Grafana interface {
 
 type grafana struct {
 	client *client
-	url    string
+	attrs  ImageAttributes
 }
 
-func NewGrafana(url string, token string, timeout time.Duration) *grafana {
-	if strings.Index(url, httpPrefix) != 0 {
-		url = httpPrefix + url
-	}
-
+func NewGrafana(url string, token string, timeout time.Duration, attrs ImageAttributes) Grafana {
 	return &grafana{
 		client: newClient(url, token, timeout),
-		url:    url,
+		attrs:  attrs,
 	}
 }
 
@@ -55,7 +50,7 @@ func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, err
 		result[p.ID] = Panel{
 			Title:         p.Title,
 			CurrentValues: currentValues,
-			Image:         g.getImage(dashboardUID, p.ID),
+			Image:         g.getImageURL(dashboardUID, p.ID),
 			Alert:         &p.Alert,
 		}
 
@@ -71,16 +66,19 @@ func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, err
 
 }
 
-func (g *grafana) getImage(dashboardUID string, panelID int) string {
+func (g *grafana) getImageURL(dashboardUID string, panelID int) string {
 	to := time.Now()
 	from := to.Add(-12 * time.Hour)
 
 	return fmt.Sprintf(
 		imageURLFormat,
-		g.url,
+		g.client.url,
 		dashboardUID,
 		from.UnixMilli(),
 		to.UnixMilli(),
 		panelID,
+		g.attrs.Width,
+		g.attrs.Height,
+		g.attrs.Timezone,
 	)
 }
