@@ -3,7 +3,7 @@ package grafana
 type Panel struct {
 	Title         string         `json:"title"`
 	Image         string         `json:"image"`
-	Alert         *Alert         `json:"alert"`
+	Alert         Alert          `json:"alert"`
 	CurrentValues []CurrentValue `json:"current_value"`
 }
 
@@ -31,7 +31,7 @@ type LabelValue struct {
 type panelMap map[int]Panel
 
 func (p panelMap) ToSlice() []Panel {
-	var result []Panel
+	result := make([]Panel, 0, len(p))
 
 	for _, panel := range p {
 		result = append(result, panel)

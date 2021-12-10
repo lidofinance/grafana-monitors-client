@@ -93,7 +93,11 @@ func (c *client) alertStates(ctx context.Context, dashboardID int) (map[int]Aler
 		return nil, fmt.Errorf("failed to create NewRequestWithContext: %w", err)
 	}
 
-	req.URL.Query().Add("dashboardId", strconv.FormatInt(int64(dashboardID), 10))
+	q := req.URL.Query()
+	q.Add("dashboardId", strconv.FormatInt(int64(dashboardID), 10))
+
+	req.URL.RawQuery = q.Encode()
+
 	req.Header.Add(authHeader, c.token)
 
 	resp, err := c.client.Do(req)
