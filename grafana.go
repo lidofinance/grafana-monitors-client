@@ -3,6 +3,8 @@ package grafana
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -41,12 +43,37 @@ func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, err
 		return nil, fmt.Errorf("error getting alert response: %w", err)
 	}
 
+	var (
+		wg = &sync.WaitGroup{}
+		errsCh = make(chan error, len(dashboard.Panels))
+		panelsCurrentValues = map[*panelData][]CurrentValue{}
+	)
 	for _, p := range dashboard.Panels {
-		currentValues, err := g.client.currentValues(ctx, p.Exprs)
-		if err != nil {
-			return nil, fmt.Errorf("error getting current values response: %w", err)
-		}
+		go func (p *panelData, panelsCurrentValues map[*panelData][]CurrentValue) {
+			wg.Add(1)
+			defer wg.Done()
 
+			currentValues, err := g.client.currentValues(ctx, p.Exprs)
+			if err != nil {
+				errsCh <- fmt.Errorf("failed to get currentValues for panel (%s): %w", p.Title, err)
+				return
+			}
+
+			panelsCurrentValues[p] = currentValues
+		}(&p, panelsCurrentValues)
+	}
+	wg.Wait()
+
+	close(errsCh)
+	var errs []string
+	for workerErr := range errsCh {
+		errs = append(errs, workerErr.Error())
+	}
+	if len(errs) != 0 {
+		return nil, fmt.Errorf("failed to get panels data: %s", strings.Join(errs, ";"))
+	}
+
+	for p, currentValues := range panelsCurrentValues {
 		result[p.ID] = Panel{
 			Title:         p.Title,
 			CurrentValues: currentValues,
