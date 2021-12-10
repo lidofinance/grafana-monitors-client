@@ -43,6 +43,32 @@ func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, err
 		return nil, fmt.Errorf("error getting alert response: %w", err)
 	}
 
+	panelsCurrentValues, err := g.getPanelsCurrentValues(ctx, dashboard)
+	if err != nil {
+		return nil, fmt.Errorf("faild to getPanelsCurrentValues: %w", err)
+	}
+
+	for p, currentValues := range panelsCurrentValues {
+		result[p.ID] = Panel{
+			Title:         p.Title,
+			CurrentValues: currentValues,
+			Image:         g.getImageURL(dashboardUID, p.ID),
+			Alert:         &p.Alert,
+		}
+
+		if as, ok := alertStates[p.ID]; ok {
+			alert := result[p.ID].Alert
+
+			alert.State = as.State
+			alert.Name = as.Name
+		}
+	}
+
+	return result.ToSlice(), nil
+
+}
+
+func (g *grafana) getPanelsCurrentValues(ctx context.Context, dashboard dashboardData) (map[*panelData][]CurrentValue, error) {
 	var (
 		wg = &sync.WaitGroup{}
 		errsCh = make(chan error, len(dashboard.Panels))
@@ -64,33 +90,18 @@ func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, err
 	}
 	wg.Wait()
 
+	// Close the errors channel so that when we hit the end of the errors queue, the
+	// range loop stops.
 	close(errsCh)
 	var errs []string
 	for workerErr := range errsCh {
 		errs = append(errs, workerErr.Error())
 	}
 	if len(errs) != 0 {
-		return nil, fmt.Errorf("failed to get panels data: %s", strings.Join(errs, ";"))
+		return nil, fmt.Errorf("collected errors: %s", strings.Join(errs, ";"))
 	}
 
-	for p, currentValues := range panelsCurrentValues {
-		result[p.ID] = Panel{
-			Title:         p.Title,
-			CurrentValues: currentValues,
-			Image:         g.getImageURL(dashboardUID, p.ID),
-			Alert:         &p.Alert,
-		}
-
-		if as, ok := alertStates[p.ID]; ok {
-			alert := result[p.ID].Alert
-
-			alert.State = as.State
-			alert.Name = as.Name
-		}
-	}
-
-	return result.ToSlice(), nil
-
+	return panelsCurrentValues, nil
 }
 
 func (g *grafana) getImageURL(dashboardUID string, panelID int) string {
