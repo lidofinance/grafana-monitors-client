@@ -51,14 +51,16 @@ func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, err
 			Title:         p.Title,
 			CurrentValues: currentValues,
 			Image:         g.getImageURL(dashboardUID, p.ID),
-			Alert:         &p.Alert,
+			Alert:         p.Alert,
 		}
 
 		if as, ok := alertStates[p.ID]; ok {
-			alert := result[p.ID].Alert
+			panel := result[p.ID]
 
-			alert.State = as.State
-			alert.Name = as.Name
+			panel.Alert.State = as.State
+			panel.Alert.Name = as.Name
+
+			result[p.ID] = panel
 		}
 	}
 

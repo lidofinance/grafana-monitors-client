@@ -6,13 +6,13 @@ const (
 
 type alertStateDTO struct {
 	ID            int    `json:"id"`
-	DashboardID   int    `json:"dashboard_id"`
-	DashboardUID  string `json:"dashboard_uid"`
-	DashboardSlug string `json:"dashboard_slug"`
-	PanelID       int    `json:"panel_id"`
+	DashboardID   int    `json:"dashboardId"`
+	DashboardUID  string `json:"dashboardUid"`
+	DashboardSlug string `json:"dashboardSlug"`
+	PanelID       int    `json:"panelId"`
 	Name          string `json:"name"`
 	State         string `json:"state"`
-	NewStateDate  string `json:"new_state_date"`
+	NewStateDate  string `json:"newStateDate"`
 }
 
 type alertStatesDTO []alertStateDTO
