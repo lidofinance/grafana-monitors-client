@@ -4,19 +4,28 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 )
 
 const (
-	token        = "Bearer eyJrIjoiS0EydVpPMXZoMzlWbm1iTWo5dTZZaG1rWjhKMFRyeDUiLCJuIjoibGlkby1kaXNjb3JkLWJvdCIsImlkIjoxfQ=="
-	addr         = "135.181.193.210:3001"
-	dashboardUID = "xxixR7Z7z"
-
 	timeout = 5 * time.Second
 )
 
+var token string
+var addr string
+var dashboardUID string
+
 func TestPanels(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode")
+	}
+
+	dashboardUID = os.Getenv("GRAFANA_DASHBOARD_UID")
+	if dashboardUID == "" {
+		t.Fatal("Failed grafana test: no dashboard uid")
+	}
 	inst := NewGrafana(addr, token, timeout, ImageAttributes{
 		Height:   500,
 		Width:    1000,

@@ -2,10 +2,14 @@ package grafana
 
 import (
 	"context"
+	"os"
 	"testing"
 )
 
 func TestCurrentValues(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
 	var (
 		queriesTestDataMap = map[string]string{
 			"update_global_index_gas_used{}":   "gas used",
@@ -33,6 +37,16 @@ func TestCurrentValues(t *testing.T) {
 			},
 		}
 	)
+
+	token = os.Getenv("GRAFANA_TOKEN")
+	if token == "" {
+		t.Fatal("Failed grafana test: no token")
+	}
+
+	addr = os.Getenv("GRAFANA_ADDR")
+	if addr == "" {
+		t.Fatal("Failed grafana test: no addr")
+	}
 
 	client := newClient(httpPrefix+addr, token, timeout)
 
