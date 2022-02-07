@@ -1,24 +1,21 @@
 package grafana
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
 )
 
 const (
-	imageURLFormat     = "%s/render/d-solo/%s/lido-monitors?from=%d&to=%d&panelId=%d&width=%d&height=%d&tz=%s"
-	DefaultPictureName = "picture.jpg"
-	httpPrefix         = "http://"
+	imageURLFormat = "%s/render/d-solo/%s/lido-monitors?from=%d&to=%d&panelId=%d&width=%d&height=%d&tz=%s"
+	httpPrefix     = "http://"
 )
 
 type Grafana interface {
 	Panels(ctx context.Context, dashboardUid string, filterPanelNames ...string) ([]Panel, error)
-	GetPanelPicture(url string) (PanelPicture, error)
+	GetPanelPicture(url string) ([]byte, error)
 	GetGrafanaPanel(panelName string, dashboardID string) (*Panel, error)
 }
 
@@ -89,17 +86,7 @@ func (g *grafana) Panels(ctx context.Context, dashboardUID string, filterPanelNa
 
 }
 
-type PanelPicture []byte
-
-func (p PanelPicture) Name() string {
-	return DefaultPictureName
-}
-
-func (p PanelPicture) Body() io.Reader {
-	return bytes.NewReader(p)
-}
-
-func (g *grafana) GetPanelPicture(url string) (PanelPicture, error) {
+func (g *grafana) GetPanelPicture(url string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create http request: %w", err)

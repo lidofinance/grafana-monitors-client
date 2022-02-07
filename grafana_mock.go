@@ -50,10 +50,10 @@ func (mr *MockGrafanaMockRecorder) GetGrafanaPanel(panelName, dashboardID interf
 }
 
 // GetPanelPicture mocks base method.
-func (m *MockGrafana) GetPanelPicture(url string) (PanelPicture, error) {
+func (m *MockGrafana) GetPanelPicture(url string) ([]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPanelPicture", url)
-	ret0, _ := ret[0].(PanelPicture)
+	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
