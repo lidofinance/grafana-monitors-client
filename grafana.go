@@ -1,19 +1,27 @@
 package grafana
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"time"
 )
 
 const (
-	imageURLFormat = "%s/render/d-solo/%s/lido-monitors?from=%d&to=%d&panelId=%d&width=%d&height=%d&tz=%s"
-
-	httpPrefix = "http://"
+	imageURLFormat     = "%s/render/d-solo/%s/lido-monitors?from=%d&to=%d&panelId=%d&width=%d&height=%d&tz=%s"
+	DefaultPictureName = "picture.jpg"
+	httpPrefix         = "http://"
 )
 
 type Grafana interface {
 	Panels(ctx context.Context, dashboardUid string) ([]Panel, error)
+	PanelsFiltered(ctx context.Context, dashboardUid string, filterPanelNames []string) ([]Panel, error)
+	GetPanelPicture(url string) (PanelPicture, error)
+	GetGrafanaPanel(panelName string, dashboardID string) (*Panel, error)
 }
 
 type grafana struct {
@@ -29,8 +37,11 @@ func NewGrafana(url string, token string, timeout time.Duration, attrs ImageAttr
 }
 
 func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, error) {
-	var result = make(panelMap)
+	return g.PanelsFiltered(ctx, dashboardUID, []string{})
+}
 
+func (g *grafana) PanelsFiltered(ctx context.Context, dashboardUID string, filterPanelNames []string) ([]Panel, error) {
+	var result = make(panelMap)
 	dashboard, err := g.client.getDashboard(ctx, dashboardUID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting dashboard response: %w", err)
@@ -41,7 +52,19 @@ func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, err
 		return nil, fmt.Errorf("error getting alert response: %w", err)
 	}
 
+	panelNamesMap := make(map[string]bool)
+	shouldFilter := false
+	if len(filterPanelNames) > 0 {
+		shouldFilter = true
+		for _, pn := range filterPanelNames {
+			panelNamesMap[pn] = true
+		}
+	}
+
 	for _, p := range dashboard.Panels {
+		if shouldFilter && !panelNamesMap[p.Title] {
+			continue
+		}
 		currentValues, err := g.client.currentValues(ctx, p.Exprs)
 		if err != nil {
 			return nil, fmt.Errorf("error getting current values response: %w", err)
@@ -66,6 +89,60 @@ func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, err
 
 	return result.ToSlice(), nil
 
+}
+
+type PanelPicture []byte
+
+func (p PanelPicture) Name() string {
+	return DefaultPictureName
+}
+
+func (p PanelPicture) Body() io.Reader {
+	return bytes.NewReader(p)
+}
+
+func (g *grafana) GetPanelPicture(url string) (PanelPicture, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http request: %w", err)
+	}
+
+	req.Header.Add(authHeader, g.client.token)
+
+	client := http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to do http request: %w", err)
+	}
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Println("failed to close http response body: %w", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get a panel picture: status code is %d", resp.StatusCode)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read a panel picture body: %w", err)
+	}
+
+	return body, nil
+}
+
+func (g *grafana) GetGrafanaPanel(panelName string, dashboardID string) (*Panel, error) {
+	panels, err := g.PanelsFiltered(context.Background(), dashboardID, []string{panelName})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get grafana panels: %w", err)
+	}
+	if len(panels) == 1 {
+		return &panels[0], nil
+	}
+
+	return nil, fmt.Errorf("panel with name %s not found", panelName)
 }
 
 func (g *grafana) getImageURL(dashboardUID string, panelID int) string {

@@ -52,3 +52,52 @@ func TestPanels(t *testing.T) {
 		}
 	}
 }
+
+func TestPanelsFiltered(t *testing.T) {
+	inst := NewGrafana(addr, token, timeout, ImageAttributes{
+		Height:   500,
+		Width:    1000,
+		Timezone: "Europe/Moscow",
+	})
+	panels, err := inst.PanelsFiltered(context.Background(), dashboardUID, []string{"Slashing: Jailed Validators"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(panels) != 1 {
+		t.Fatal("List is not filtered")
+	}
+}
+
+func TestGetPanelPicture(t *testing.T) {
+	inst := NewGrafana(addr, token, timeout, ImageAttributes{
+		Height:   500,
+		Width:    1000,
+		Timezone: "Europe/Moscow",
+	})
+
+	panels, _ := inst.Panels(context.Background(), dashboardUID)
+	image := panels[0].Image
+	imageBody, err := inst.GetPanelPicture(image)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imageBody) == 0 {
+		t.Fatal("image is empty")
+	}
+}
+
+func TestGetGrafanaPanel(t *testing.T) {
+	inst := NewGrafana(addr, token, timeout, ImageAttributes{
+		Height:   500,
+		Width:    1000,
+		Timezone: "Europe/Moscow",
+	})
+
+	panel, err := inst.GetGrafanaPanel("Slashing: Jailed Validators", dashboardUID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if panel.Title != "Slashing: Jailed Validators" {
+		t.Fatal("Panel not found")
+	}
+}
