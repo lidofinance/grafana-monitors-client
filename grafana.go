@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 )
@@ -18,8 +17,7 @@ const (
 )
 
 type Grafana interface {
-	Panels(ctx context.Context, dashboardUid string) ([]Panel, error)
-	PanelsFiltered(ctx context.Context, dashboardUid string, filterPanelNames []string) ([]Panel, error)
+	Panels(ctx context.Context, dashboardUid string, filterPanelNames ...string) ([]Panel, error)
 	GetPanelPicture(url string) (PanelPicture, error)
 	GetGrafanaPanel(panelName string, dashboardID string) (*Panel, error)
 }
@@ -36,13 +34,10 @@ func NewGrafana(url string, token string, timeout time.Duration, attrs ImageAttr
 	}
 }
 
-func (g *grafana) Panels(ctx context.Context, dashboardUID string) ([]Panel, error) {
-	return g.PanelsFiltered(ctx, dashboardUID, []string{})
-}
-
-func (g *grafana) PanelsFiltered(ctx context.Context, dashboardUID string, filterPanelNames []string) ([]Panel, error) {
+func (g *grafana) Panels(ctx context.Context, dashboardUID string, filterPanelNames ...string) ([]Panel, error) {
 	var result = make(panelMap)
 	dashboard, err := g.client.getDashboard(ctx, dashboardUID)
+
 	if err != nil {
 		return nil, fmt.Errorf("error getting dashboard response: %w", err)
 	}
@@ -52,19 +47,22 @@ func (g *grafana) PanelsFiltered(ctx context.Context, dashboardUID string, filte
 		return nil, fmt.Errorf("error getting alert response: %w", err)
 	}
 
-	panelNamesMap := make(map[string]bool)
-	shouldFilter := false
+	panels := make([]panelData, 0)
 	if len(filterPanelNames) > 0 {
-		shouldFilter = true
+		panelNamesMap := make(map[string]bool)
 		for _, pn := range filterPanelNames {
 			panelNamesMap[pn] = true
 		}
+		for _, panel := range dashboard.Panels {
+			if _, ok := panelNamesMap[panel.Title]; ok {
+				panels = append(panels, panel)
+			}
+		}
+	} else {
+		panels = dashboard.Panels
 	}
 
-	for _, p := range dashboard.Panels {
-		if shouldFilter && !panelNamesMap[p.Title] {
-			continue
-		}
+	for _, p := range panels {
 		currentValues, err := g.client.currentValues(ctx, p.Exprs)
 		if err != nil {
 			return nil, fmt.Errorf("error getting current values response: %w", err)
@@ -108,18 +106,12 @@ func (g *grafana) GetPanelPicture(url string) (PanelPicture, error) {
 	}
 
 	req.Header.Add(authHeader, g.client.token)
-
-	client := http.Client{}
-	resp, err := client.Do(req)
+	resp, err := g.client.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to do http request: %w", err)
 	}
 
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Println("failed to close http response body: %w", err)
-		}
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to get a panel picture: status code is %d", resp.StatusCode)
@@ -134,7 +126,7 @@ func (g *grafana) GetPanelPicture(url string) (PanelPicture, error) {
 }
 
 func (g *grafana) GetGrafanaPanel(panelName string, dashboardID string) (*Panel, error) {
-	panels, err := g.PanelsFiltered(context.Background(), dashboardID, []string{panelName})
+	panels, err := g.Panels(context.Background(), dashboardID, panelName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get grafana panels: %w", err)
 	}

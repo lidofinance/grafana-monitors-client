@@ -59,7 +59,7 @@ func TestPanelsFiltered(t *testing.T) {
 		Width:    1000,
 		Timezone: "Europe/Moscow",
 	})
-	panels, err := inst.PanelsFiltered(context.Background(), dashboardUID, []string{"Slashing: Jailed Validators"})
+	panels, err := inst.Panels(context.Background(), dashboardUID, "Slashing: Jailed Validators")
 	if err != nil {
 		t.Fatal(err)
 	}
