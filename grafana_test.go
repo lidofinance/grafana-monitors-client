@@ -63,6 +63,9 @@ func TestPanels(t *testing.T) {
 }
 
 func TestPanelsFiltered(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode")
+	}
 	inst := NewGrafana(addr, token, timeout, ImageAttributes{
 		Height:   500,
 		Width:    1000,
@@ -78,6 +81,9 @@ func TestPanelsFiltered(t *testing.T) {
 }
 
 func TestGetPanelPicture(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode")
+	}
 	inst := NewGrafana(addr, token, timeout, ImageAttributes{
 		Height:   500,
 		Width:    1000,
@@ -96,6 +102,9 @@ func TestGetPanelPicture(t *testing.T) {
 }
 
 func TestGetGrafanaPanel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode")
+	}
 	inst := NewGrafana(addr, token, timeout, ImageAttributes{
 		Height:   500,
 		Width:    1000,
